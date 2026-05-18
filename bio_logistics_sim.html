@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Bio-Logistics Sim</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:        #050d0a;
+    --panel:     #0a1a12;
+    --border:    #1a4028;
+    --green:     #00ff88;
+    --green-dim: #00994d;
+    --red:       #ff3355;
+    --yellow:    #ffcc00;
+    --blue:      #00ccff;
+    --text:      #c8f0d8;
+    --muted:     #4a8060;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Share Tech Mono', monospace;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+    background-image:
+      radial-gradient(ellipse at 20% 20%, rgba(0,255,136,0.04) 0%, transparent 60%),
+      radial-gradient(ellipse at 80% 80%, rgba(0,204,255,0.03) 0%, transparent 60%);
+  }
+
+  h1 {
+    font-family: 'Orbitron', monospace;
+    font-size: clamp(1.2rem, 4vw, 2rem);
+    font-weight: 900;
+    color: var(--green);
+    text-align: center;
+    letter-spacing: 0.15em;
+    text-shadow: 0 0 20px rgba(0,255,136,0.5);
+    margin-bottom: 4px;
+  }
+
+  .subtitle {
+    color: var(--muted);
+    font-size: 0.75rem;
+    letter-spacing: 0.3em;
+    text-align: center;
+    margin-bottom: 20px;
+  }
+
+  .game-wrapper {
+    width: 100%;
+    max-width: 900px;
+    display: grid;
+    grid-template-columns: 1fr 280px;
+    gap: 14px;
+  }
+
+  @media (max-width: 700px) {
+    .game-wrapper { grid-template-columns: 1fr; }
+  }
+
+  /* ── PANELS ── */
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 14px;
+    position: relative;
+  }
+
+  .panel-title {
+    font-family: 'Orbitron', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 0.25em;
+    color: var(--green-dim);
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 8px;
+    margin-bottom: 12px;
+  }
+
+  /* ── TERMINAL LOG ── */
+  #log {
+    height: 380px;
+    overflow-y: auto;
+    font-size: 0.8rem;
+    line-height: 1.7;
+    padding-right: 4px;
+  }
+
+  #log::-webkit-scrollbar { width: 4px; }
+  #log::-webkit-scrollbar-track { background: var(--bg); }
+  #log::-webkit-scrollbar-thumb { background: var(--border); }
+
+  .log-line { padding: 1px 0; }
+  .log-line.sys   { color: var(--green); }
+  .log-line.warn  { color: var(--yellow); }
+  .log-line.error { color: var(--red); }
+  .log-line.info  { color: var(--blue); }
+  .log-line.muted { color: var(--muted); }
+  .log-line.event { color: var(--yellow); font-weight: bold; }
+  .log-line.win   { color: var(--green); font-family: 'Orbitron', monospace; font-size: 0.75rem; }
+  .log-line.lose  { color: var(--red);   font-family: 'Orbitron', monospace; font-size: 0.75rem; }
+
+  /* ── STAT BARS ── */
+  .stat { margin-bottom: 10px; }
+  .stat-label {
+    font-size: 0.68rem;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 4px;
+  }
+  .stat-label span { color: var(--text); }
+
+  .bar-track {
+    height: 6px;
+    background: #0d2018;
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.4s ease;
+  }
+  .bar-health  { background: linear-gradient(90deg, var(--red), var(--green)); }
+  .bar-o2      { background: var(--blue); }
+  .bar-glucose { background: var(--yellow); }
+  .bar-waste   { background: #ff6644; }
+
+  /* ── ORGAN STATUS ── */
+  .organ-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 5px 0;
+    border-bottom: 1px solid #0d2018;
+    font-size: 0.72rem;
+  }
+  .organ-row:last-child { border-bottom: none; }
+  .organ-icon { font-size: 1rem; margin-right: 6px; }
+  .organ-name { color: var(--text); flex: 1; }
+  .organ-badge {
+    font-size: 0.62rem;
+    padding: 2px 6px;
+    border-radius: 2px;
+    letter-spacing: 0.1em;
+  }
+  .badge-ok     { background: #0a2a14; color: var(--green); }
+  .badge-warn   { background: #2a1a00; color: var(--yellow); }
+  .badge-danger { background: #2a0010; color: var(--red); }
+
+  /* ── BUTTONS ── */
+  .btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+
+  button {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.1em;
+    padding: 8px 14px;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: all 0.15s;
+    border: 1px solid;
+  }
+  button:disabled { opacity: 0.3; cursor: not-allowed; }
+
+  .btn-primary {
+    background: #0a2a14;
+    border-color: var(--green);
+    color: var(--green);
+  }
+  .btn-primary:hover:not(:disabled) {
+    background: var(--green);
+    color: var(--bg);
+    box-shadow: 0 0 12px rgba(0,255,136,0.4);
+  }
+
+  .btn-warn {
+    background: #1a1000;
+    border-color: var(--yellow);
+    color: var(--yellow);
+  }
+  .btn-warn:hover:not(:disabled) {
+    background: var(--yellow);
+    color: var(--bg);
+  }
+
+  .btn-info {
+    background: #001a22;
+    border-color: var(--blue);
+    color: var(--blue);
+  }
+  .btn-info:hover:not(:disabled) {
+    background: var(--blue);
+    color: var(--bg);
+  }
+
+  .btn-danger {
+    background: #1a0008;
+    border-color: var(--red);
+    color: var(--red);
+  }
+  .btn-danger:hover:not(:disabled) {
+    background: var(--red);
+    color: var(--bg);
+  }
+
+  /* ── HOUR TICKER ── */
+  .hour-display {
+    font-family: 'Orbitron', monospace;
+    font-size: 1.6rem;
+    color: var(--green);
+    text-align: center;
+    text-shadow: 0 0 16px rgba(0,255,136,0.6);
+    margin-bottom: 8px;
+  }
+
+  .event-banner {
+    background: #1a0a00;
+    border: 1px solid var(--yellow);
+    border-radius: 3px;
+    padding: 8px 10px;
+    font-size: 0.72rem;
+    color: var(--yellow);
+    margin-bottom: 10px;
+    display: none;
+  }
+  .event-banner.active { display: block; }
+
+  /* ── REROUTE PANEL ── */
+  .reroute-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 5px 0;
+    font-size: 0.72rem;
+    border-bottom: 1px solid #0d2018;
+  }
+  .reroute-row:last-child { border-bottom: none; }
+  .priority-val { color: var(--green); min-width: 28px; text-align: center; }
+
+  .small-btn {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.65rem;
+    padding: 3px 7px;
+    border-radius: 2px;
+    border: 1px solid var(--border);
+    background: #0a1a12;
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.1s;
+  }
+  .small-btn:hover { border-color: var(--green); color: var(--green); }
+
+  /* ── START SCREEN ── */
+  #start-screen {
+    text-align: center;
+    padding: 30px 20px;
+    max-width: 600px;
+  }
+  #start-screen p {
+    font-size: 0.8rem;
+    line-height: 1.9;
+    color: var(--text);
+    margin-bottom: 16px;
+  }
+  .lore { color: var(--muted); font-size: 0.72rem; line-height: 1.8; margin-bottom: 20px; }
+
+  #game-screen { display: none; width: 100%; max-width: 900px; }
+
+  .blink { animation: blink 1s step-end infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* scanline overlay */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.05) 2px,
+      rgba(0,0,0,0.05) 4px
+    );
+    pointer-events: none;
+    z-index: 999;
+  }
+</style>
+</head>
+<body>
+
+<h1>THE BIO-LOGISTICS SIM</h1>
+<p class="subtitle">LOGISTICS MANAGER — HUMAN BODY DIVISION</p>
+
+<!-- START SCREEN -->
+<div id="start-screen">
+  <p>
+    You are the <strong style="color:var(--green)">Logistics Manager</strong> of a human body.<br>
+    Your cargo: <span style="color:var(--blue)">Oxygen</span>, <span style="color:var(--yellow)">Glucose</span>, and Hormones.<br>
+    Your routes: Arteries and Veins.<br>
+    Your disasters: Adrenaline spikes, injuries, and stress events.
+  </p>
+  <p class="lore">
+    LOGISTICS PIPELINE:<br>
+    🫁 Lungs / 🍽️ Stomach → INTAKE<br>
+    🟡 Liver → SORTING<br>
+    ❤️ Heart → DISTRIBUTION<br>
+    🫘 Kidneys → WASTE MANAGEMENT
+  </p>
+  <p style="color:var(--muted); font-size:0.72rem;">
+    Survive a full <strong style="color:var(--green)">24-hour cycle</strong> including at least one high-stress event.<br>
+    Manage blood flow, eat, and breathe to keep all organs alive.
+  </p>
+  <br>
+  <button class="btn-primary" onclick="startGame()" style="font-size:0.9rem; padding:12px 32px; letter-spacing:0.2em;">
+    ▶ BEGIN SIMULATION
+  </button>
+</div>
+
+<!-- GAME SCREEN -->
+<div id="game-screen">
+  <div class="game-wrapper">
+
+    <!-- LEFT: log + actions -->
+    <div style="display:flex; flex-direction:column; gap:14px;">
+
+      <!-- Event banner -->
+      <div class="event-banner" id="event-banner">⚡ EVENT ACTIVE</div>
+
+      <!-- Terminal log -->
+      <div class="panel">
+        <div class="panel-title">▸ SYSTEM LOG</div>
+        <div id="log"></div>
+      </div>
+
+      <!-- Action buttons -->
+      <div class="panel">
+        <div class="panel-title">▸ LOGISTICS ACTIONS</div>
+        <div class="btn-row">
+          <button class="btn-primary" id="btn-next" onclick="nextHour()">▶ NEXT HOUR</button>
+          <button class="btn-warn"    id="btn-snack" onclick="eatSnack()">🍎 EAT SNACK (+50 glucose)</button>
+          <button class="btn-info"    id="btn-breathe" onclick="deepBreathe()">🫁 DEEP BREATH (+20 O₂)</button>
+        </div>
+      </div>
+
+      <!-- Reroute -->
+      <div class="panel">
+        <div class="panel-title">▸ REROUTE BLOOD FLOW</div>
+        <div id="reroute-panel"></div>
+      </div>
+
+    </div>
+
+    <!-- RIGHT: stats -->
+    <div style="display:flex; flex-direction:column; gap:14px;">
+
+      <!-- Hour + health -->
+      <div class="panel" style="text-align:center;">
+        <div class="panel-title">▸ CYCLE STATUS</div>
+        <div class="hour-display" id="hour-display">00:00</div>
+        <div style="font-size:0.7rem; color:var(--muted); margin-bottom:10px;">of 24:00</div>
+
+        <div class="stat">
+          <div class="stat-label">HEALTH <span id="hp-val">100</span>/100</div>
+          <div class="bar-track"><div class="bar-fill bar-health" id="hp-bar" style="width:100%"></div></div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">O₂ SUPPLY <span id="o2-val">100</span></div>
+          <div class="bar-track"><div class="bar-fill bar-o2" id="o2-bar" style="width:100%"></div></div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">GLUCOSE <span id="g-val">200</span></div>
+          <div class="bar-track"><div class="bar-fill bar-glucose" id="g-bar" style="width:100%"></div></div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">WASTE LEVEL <span id="w-val">0</span></div>
+          <div class="bar-track"><div class="bar-fill bar-waste" id="w-bar" style="width:0%"></div></div>
+        </div>
+      </div>
+
+      <!-- Organ status -->
+      <div class="panel">
+        <div class="panel-title">▸ ORGAN STATUS</div>
+        <div id="organ-status"></div>
+      </div>
+
+      <!-- High-stress tracker -->
+      <div class="panel">
+        <div class="panel-title">▸ WIN CONDITION</div>
+        <div style="font-size:0.72rem; color:var(--muted); line-height:1.8;">
+          Hours completed: <span id="hours-done" style="color:var(--green)">0</span>/24<br>
+          High-stress event: <span id="hs-status" style="color:var(--red)">PENDING</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+// ────────────────────────────────────────────
+//  GAME STATE
+// ────────────────────────────────────────────
+let state = {};
+
+function initState() {
+  state = {
+    hour: 0,
+    health: 100,
+    o2: 100,
+    glucose: 200,
+    wasteLevel: 0,
+    glycogenStore: 100,
+    stressHour: 8 + Math.floor(Math.random() * 11),
+    highStressSurvived: false,
+    gameOver: false,
+    o2Boost: 0,
+    muscles: [
+      { name: 'Brain',      icon: '🧠', o2Need: 35, gNeed: 30, priority: 1.5, deficit: 0, fatigue: 0 },
+      { name: 'Leg Muscle', icon: '🦵', o2Need: 30, gNeed: 20, priority: 1.0, deficit: 0, fatigue: 0 },
+      { name: 'Heart Wall', icon: '💓', o2Need: 20, gNeed: 15, priority: 1.3, deficit: 0, fatigue: 0 },
+    ],
+  };
+}
+
+const EVENTS = [
+  { name:'🏃 Sprinting Event',  desc:'Legs demand massive oxygen. Stress skyrockets!',          stress:2.5, extraO2:40, waste:25, hormone:'Adrenaline', high:true  },
+  { name:'📝 Exam Stress',      desc:'Brain burns glucose at double rate. Heart rate elevated.', stress:1.8, extraO2:10, waste:10, hormone:'Cortisol',   high:true  },
+  { name:'🤕 Minor Injury',     desc:'Blood rerouted for clotting. Periphery gets less.',        stress:1.5, extraO2:0,  waste:15, hormone:'Histamine',  high:false },
+  { name:'😴 Resting Phase',    desc:'All systems slow. A chance to recover.',                   stress:0.7, extraO2:0,  waste:3,  hormone:'Melatonin',  high:false },
+  { name:'🌡️ Fever Onset',      desc:'Immune response active. Temperature rising.',              stress:1.6, extraO2:5,  waste:20, hormone:'Pyrogens',   high:false },
+];
+
+// ────────────────────────────────────────────
+//  LOG
+// ────────────────────────────────────────────
+function log(msg, cls='') {
+  const el = document.getElementById('log');
+  const line = document.createElement('div');
+  line.className = 'log-line ' + cls;
+  line.textContent = msg;
+  el.appendChild(line);
+  el.scrollTop = el.scrollHeight;
+}
+
+function logDivider() { log('──────────────────────────────────────', 'muted'); }
+
+// ────────────────────────────────────────────
+//  UI UPDATES
+// ────────────────────────────────────────────
+function updateUI() {
+  // Hour
+  document.getElementById('hour-display').textContent =
+    String(state.hour).padStart(2,'0') + ':00';
+  document.getElementById('hours-done').textContent = state.hour;
+
+  // Bars
+  setBar('hp',  state.health,     100);
+  setBar('o2',  state.o2,         120);
+  setBar('g',   state.glucose,    300);
+  setBar('w',   state.wasteLevel, 100);
+
+  // High-stress
+  const hs = document.getElementById('hs-status');
+  if (state.highStressSurvived) {
+    hs.textContent = 'SURVIVED ✅';
+    hs.style.color = 'var(--green)';
+  }
+
+  // Organ panel
+  const op = document.getElementById('organ-status');
+  op.innerHTML = '';
+  state.muscles.forEach(m => {
+    const pct = Math.min(100, Math.round(m.deficit / m.o2Need * 100));
+    let badge = 'badge-ok'; let btext = 'OK';
+    if (pct > 50) { badge = 'badge-danger'; btext = `${pct}% DEF`; }
+    else if (pct > 20) { badge = 'badge-warn'; btext = `${pct}% LOW`; }
+
+    op.innerHTML += `
+      <div class="organ-row">
+        <span class="organ-icon">${m.icon}</span>
+        <span class="organ-name">${m.name}</span>
+        <span class="organ-badge ${badge}">${btext}</span>
+      </div>`;
+  });
+
+  // Reroute panel
+  const rp = document.getElementById('reroute-panel');
+  rp.innerHTML = '';
+  state.muscles.forEach((m, i) => {
+    rp.innerHTML += `
+      <div class="reroute-row">
+        <span>${m.icon} ${m.name}</span>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <button class="small-btn" onclick="adjustPriority(${i},-0.2)">−</button>
+          <span class="priority-val" id="pri-${i}">${m.priority.toFixed(1)}</span>
+          <button class="small-btn" onclick="adjustPriority(${i},0.2)">+</button>
+        </div>
+      </div>`;
+  });
+}
+
+function setBar(id, val, max) {
+  const pct = Math.min(100, Math.max(0, (val / max) * 100));
+  document.getElementById(id+'-bar').style.width = pct + '%';
+  document.getElementById(id+'-val').textContent = Math.round(val);
+}
+
+// ────────────────────────────────────────────
+//  GAME LOGIC
+// ────────────────────────────────────────────
+function pickEvent() {
+  if (state.hour === state.stressHour) {
+    const highEvents = EVENTS.filter(e => e.high);
+    return highEvents[Math.floor(Math.random() * highEvents.length)];
+  }
+  if (Math.random() < 0.25) {
+    return EVENTS[Math.floor(Math.random() * EVENTS.length)];
+  }
+  return null;
+}
+
+function runTick() {
+  const event = pickEvent();
+  const stress = event ? event.stress : 1.0;
+
+  logDivider();
+  log(`► HOUR ${String(state.hour).padStart(2,'0')}:00`, 'sys');
+
+  if (event) {
+    log(`⚡ EVENT: ${event.name}`, 'event');
+    log(`   ${event.desc}`, 'warn');
+    log(`   Hormone: ${event.hormone}`, 'info');
+    // show banner
+    const banner = document.getElementById('event-banner');
+    banner.textContent = `⚡ ${event.name} — ${event.hormone} released`;
+    banner.classList.add('active');
+    if (event.high) state.highStressSurvived = true;
+  } else {
+    document.getElementById('event-banner').classList.remove('active');
+  }
+
+  // 1. INTAKE
+  log('── INTAKE ─────────────────────', 'muted');
+  let o2Produced = Math.round(100 / stress) + state.o2Boost;
+  state.o2Boost = 0;
+  if (event) o2Produced = Math.max(0, o2Produced - (event.extraO2 || 0));
+  let glucoseReleased = Math.min(30 + Math.round(stress * 10), state.glucose + 200);
+  state.o2 = o2Produced;
+  log(`🫁 Lungs → O₂ produced: ${o2Produced} units`, o2Produced < 40 ? 'warn' : 'sys');
+
+  // Stomach
+  let gAvail = Math.min(glucoseReleased, 300);
+  log(`🍽️ Stomach → Glucose released: ${gAvail} units`, 'sys');
+
+  // 2. LIVER
+  log('── SORTING (Liver) ────────────', 'muted');
+  if (gAvail > 150) {
+    const stored = gAvail - 150; state.glycogenStore += stored; gAvail = 150;
+    log(`🟡 Liver → Storing ${stored} excess → glycogen: ${state.glycogenStore}`, 'info');
+  } else if (gAvail < 50 && state.glycogenStore > 0) {
+    const rel = Math.min(50, state.glycogenStore); state.glycogenStore -= rel; gAvail += rel;
+    log(`🟡 Liver → Low glucose! Released ${rel} from glycogen.`, 'warn');
+  } else {
+    log(`🟡 Liver → Glucose nominal (${gAvail} units).`, 'sys');
+  }
+  state.glucose = gAvail;
+
+  // 3. HEART
+  log('── DISTRIBUTION (Heart) ───────', 'muted');
+  const bpm = Math.round(70 * stress);
+  const eff = Math.max(0.5, 1.0 - (stress - 1) * 0.1);
+  log(`❤️ Heart → BPM: ${bpm}  |  Efficiency: ${Math.round(eff*100)}%`, bpm > 120 ? 'warn' : 'sys');
+
+  const totalPri = state.muscles.reduce((s,m) => s + m.priority, 0);
+  state.muscles.forEach(m => {
+    const share = m.priority / totalPri;
+    const o2d = Math.round(o2Produced * share * eff);
+    const gd  = Math.round(gAvail    * share * eff);
+    const o2gap = Math.max(0, m.o2Need - o2d);
+    const ggap  = Math.max(0, m.gNeed  - gd);
+    m.deficit += o2gap;
+    m.fatigue  += Math.round((o2gap + ggap) / 5);
+    if (o2gap > 0 || ggap > 0) {
+      log(`${m.icon} ${m.name} → O₂ gap: ${o2gap}  Glucose gap: ${ggap}  Fatigue: ${m.fatigue}`, 'warn');
+    } else {
+      log(`${m.icon} ${m.name} → Fully supplied ✓`, 'sys');
+    }
+  });
+
+  // 4. KIDNEYS
+  log('── WASTE MGMT (Kidneys) ────────', 'muted');
+  const wasteIn = Math.round(stress * 10) + (event ? (event.waste || 5) : 5);
+  state.wasteLevel += wasteIn;
+  const filtered = Math.min(state.wasteLevel, 30);
+  state.wasteLevel -= filtered;
+  if (state.wasteLevel > 80) {
+    log(`🚨 Kidneys → OVERLOADED! Waste: ${state.wasteLevel}. -10 HP!`, 'error');
+    state.health -= 10;
+  } else {
+    log(`🫘 Kidneys → Filtered ${filtered} units. Waste: ${state.wasteLevel}`, 'sys');
+  }
+
+  // Fatigue penalty
+  const totalFatigue = state.muscles.reduce((s,m) => s + m.fatigue, 0);
+  if (totalFatigue > 20) {
+    const dmg = Math.floor((totalFatigue - 20) / 5);
+    state.health -= dmg;
+    if (dmg > 0) log(`😓 Fatigue → ${dmg} HP damage`, 'warn');
+  }
+
+  // Natural recovery if resting
+  if (stress < 1.0) {
+    state.health = Math.min(100, state.health + 3);
+    log('😴 Resting → +3 HP recovery', 'info');
+  }
+
+  state.health = Math.max(0, Math.min(100, state.health));
+  state.hour++;
+}
+
+// ────────────────────────────────────────────
+//  PLAYER ACTIONS
+// ────────────────────────────────────────────
+function nextHour() {
+  if (state.gameOver) return;
+  runTick();
+  updateUI();
+  checkEndConditions();
+}
+
+function eatSnack() {
+  if (state.gameOver) return;
+  state.glucose = Math.min(300, state.glucose + 50);
+  log('🍎 Snack consumed → +50 glucose', 'info');
+  updateUI();
+}
+
+function deepBreathe() {
+  if (state.gameOver) return;
+  state.o2Boost += 20;
+  log('🫁 Deep breath → +20 O₂ next tick', 'info');
+}
+
+function adjustPriority(i, delta) {
+  if (state.gameOver) return;
+  const m = state.muscles[i];
+  m.priority = Math.round(Math.min(2.0, Math.max(0.5, m.priority + delta)) * 10) / 10;
+  document.getElementById('pri-'+i).textContent = m.priority.toFixed(1);
+  log(`🔀 ${m.name} priority → ${m.priority.toFixed(1)}`, 'info');
+}
+
+// ────────────────────────────────────────────
+//  END CONDITIONS
+// ────────────────────────────────────────────
+function checkEndConditions() {
+  if (state.health <= 0) {
+    endGame(false);
+  } else if (state.hour >= 24) {
+    endGame(true);
+  }
+}
+
+function endGame(won) {
+  state.gameOver = true;
+  document.getElementById('btn-next').disabled = true;
+  document.getElementById('btn-snack').disabled = true;
+  document.getElementById('btn-breathe').disabled = true;
+
+  logDivider();
+  if (won) {
+    log('', '');
+    log('████  SIMULATION COMPLETE  ████', 'win');
+    log(`24-HOUR CYCLE SURVIVED!`, 'win');
+    log(`Final Health: ${state.health} HP`, 'sys');
+    log(`High-stress event: ${state.highStressSurvived ? 'SURVIVED ✅' : 'MISSED ❌'}`, state.highStressSurvived ? 'sys' : 'warn');
+    log('The Logistics Manager has kept the body alive.', 'info');
+  } else {
+    log('', '');
+    log('████  SYSTEM FAILURE  ████', 'lose');
+    log('HEALTH REACHED ZERO.', 'lose');
+    log(`Failed at hour ${state.hour-1}:00`, 'error');
+    log('The organs have shut down.', 'error');
+    log('', '');
+  }
+
+  const restartBtn = document.createElement('button');
+  restartBtn.className = won ? 'btn-primary' : 'btn-danger';
+  restartBtn.textContent = '↺ RESTART SIMULATION';
+  restartBtn.style.marginTop = '10px';
+  restartBtn.onclick = restartGame;
+  document.getElementById('log').appendChild(restartBtn);
+  document.getElementById('log').scrollTop = 999999;
+}
+
+// ────────────────────────────────────────────
+//  START / RESTART
+// ────────────────────────────────────────────
+function startGame() {
+  document.getElementById('start-screen').style.display = 'none';
+  document.getElementById('game-screen').style.display  = 'flex';
+  document.getElementById('game-screen').style.flexDirection = 'column';
+  document.getElementById('game-screen').style.alignItems = 'center';
+  initState();
+  updateUI();
+  log('SYSTEM BOOT SEQUENCE INITIATED...', 'sys');
+  log('All organs online. Simulation begins.', 'sys');
+  log(`High-stress event scheduled at hour ${state.stressHour}:00. Stay alert.`, 'warn');
+  logDivider();
+}
+
+function restartGame() {
+  document.getElementById('log').innerHTML = '';
+  document.getElementById('btn-next').disabled = false;
+  document.getElementById('btn-snack').disabled = false;
+  document.getElementById('btn-breathe').disabled = false;
+  document.getElementById('event-banner').classList.remove('active');
+  initState();
+  updateUI();
+  log('SYSTEM REBOOT COMPLETE.', 'sys');
+  log('New 24-hour cycle initiated.', 'sys');
+  log(`High-stress event scheduled at hour ${state.stressHour}:00.`, 'warn');
+  logDivider();
+}
+</script>
+</body>
+</html>
